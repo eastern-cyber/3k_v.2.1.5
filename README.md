@@ -11,3 +11,4 @@ django-htmx           1.23.1<br>
 django-resized        1.0.3<br>
 pillow                11.3.0<br>
 # 3k_v.2.1.2
+# 3k_v.2.1.4
