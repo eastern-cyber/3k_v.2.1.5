@@ -203,7 +203,17 @@
                             // Use your actual domain instead of localhost
                             window.location.href = '/templates/dashboard.html';
                         }, 1000);
-                        
+
+                        // In handleSubmit() function after successful login:
+                        // Store backend URL for future use
+                        const apiUrl = isLocalhost 
+                        ? 'http://localhost:3001/api/auth/login'
+                        : 'https://3k214.dfi.fund/api/auth/login';
+
+                        // Store backend info
+                        const backendBaseUrl = apiUrl.replace('/api/auth/login', '');
+                        localStorage.setItem('backend_url', backendBaseUrl);
+                        localStorage.setItem('backend_port', window.location.port || '3001');                        
                     } else {
                         this.error = data.message || 'Invalid email or password';
                     }
