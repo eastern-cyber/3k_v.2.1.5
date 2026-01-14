@@ -4,7 +4,6 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>KokKokKok - Dashboard</title>
-    <!-- NO external CSS - using inline styles -->
     <style>
         body {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
@@ -121,6 +120,17 @@
             word-break: break-all;
         }
 
+        /* Debug info */
+        .debug-info {
+            background: #f0f8ff;
+            border: 1px dashed #4CAF50;
+            padding: 10px;
+            border-radius: 5px;
+            margin-bottom: 15px;
+            font-size: 12px;
+            font-family: monospace;
+        }
+
         /* For small screens, truncate with ellipsis */
         @media (max-width: 768px) {
             .wallet-address {
@@ -139,6 +149,17 @@
         <div class="success">
             <h1>🎉 ล็อกอินสำเร็จ!</h1>
             <p>KokKokKok Dashboard ยินดีต้อนรับ</p>
+        </div>
+        
+        <!-- Debug Information -->
+        <div class="debug-info" id="debugInfo">
+            <p><strong>Debug Info:</strong> 
+                <span id="debugDomain"></span> | 
+                <span id="debugBackendUrl"></span>
+            </p>
+            <button onclick="forceUpdateBackend()" class="btn" style="padding: 5px 10px; font-size: 11px; background: #ff9800;">
+                🔄 Force Fix Backend URL
+            </button>
         </div>
         
         <div class="user-info">
@@ -196,20 +217,38 @@
     let isEditingName = false;
     let currentBackendUrl = '';
 
+    // ========== DEBUG FUNCTIONS ==========
+    function updateDebugInfo() {
+        document.getElementById('debugDomain').textContent = `Domain: ${window.location.hostname}`;
+        document.getElementById('debugBackendUrl').textContent = `Backend: ${getBackendUrl()}`;
+    }
+
+    function forceUpdateBackend() {
+        // Clear any old backend URLs
+        localStorage.removeItem('backend_url');
+        localStorage.removeItem('backend_port');
+        
+        // Always use current domain
+        const currentDomain = window.location.origin;
+        localStorage.setItem('backend_url', currentDomain);
+        
+        alert(`✅ Backend URL updated to:\n${currentDomain}\n\nPage will reload.`);
+        window.location.reload();
+    }
+
     // ========== INITIALIZATION ==========
-    console.log('Dashboard loaded');
+    console.log('Dashboard loaded - v2.1.5');
 
     // Check authentication on page load
     function checkAuthentication() {
-        // Try to get token from BOTH possible keys for compatibility
         const token = localStorage.getItem('token') || localStorage.getItem('user_token');
         const userData = localStorage.getItem('user') || localStorage.getItem('user_data');
         
-        console.log('Token found:', !!token);
-        console.log('User data found:', !!userData);
+        console.log('🔐 Token found:', !!token);
+        console.log('👤 User data found:', !!userData);
         
         if (!token) {
-            console.log('No token found, redirecting to login...');
+            console.log('❌ No token found, redirecting to login...');
             showMessage('No authentication token found. Redirecting to login...', 'error');
             setTimeout(() => {
                 window.location.href = '/templates/login.html';
@@ -222,11 +261,9 @@
 
     // ========== USER DATA FUNCTIONS ==========
     function loadUserData() {
-        // Try multiple possible keys for compatibility
-        const userData = localStorage.getItem('user') || 
-                         localStorage.getItem('user_data');
+        const userData = localStorage.getItem('user') || localStorage.getItem('user_data');
         
-        console.log('Loading user data from storage:', userData);
+        console.log('Loading user data from storage:', userData ? 'Yes' : 'No');
         
         if (userData) {
             try {
@@ -236,7 +273,7 @@
                 document.getElementById('userId').textContent = user.user_id || 'Not set';
                 document.getElementById('tokenId').textContent = user.token_id || 'Not set';
 
-                console.log('User loaded:', user);
+                console.log('✅ User loaded:', user);
             } catch (e) {
                 console.error('Error parsing user data:', e);
                 showMessage('Error loading user data', 'error');
@@ -252,11 +289,9 @@
         const currentName = document.getElementById('userName').textContent;
         
         if (isEditingName) {
-            // Hide form
             form.style.display = 'none';
             isEditingName = false;
         } else {
-            // Show form with current name
             document.getElementById('newNameInput').value = currentName;
             form.style.display = 'block';
             isEditingName = true;
@@ -288,7 +323,7 @@
                 return;
             }
             
-            // Get token from BOTH possible locations
+            // Get token
             const token = localStorage.getItem('token') || localStorage.getItem('user_token');
             
             if (!token) {
@@ -305,6 +340,7 @@
             
             // Get backend URL
             const backendUrl = getBackendUrl();
+            console.log('📤 Updating name via:', backendUrl + '/api/auth/update-profile');
             
             // Send update request
             const response = await fetch(`${backendUrl}/api/auth/update-profile`, {
@@ -340,7 +376,6 @@
                 if (userData) {
                     const user = JSON.parse(userData);
                     user.name = newName;
-                    // Update BOTH keys for compatibility
                     localStorage.setItem('user', JSON.stringify(user));
                     localStorage.setItem('user_data', JSON.stringify(user));
                 }
@@ -358,30 +393,30 @@
         } catch (error) {
             console.error('Update error:', error);
             document.getElementById('nameEditMessage').innerHTML = 
-                '<span style="color: red;">Network error. Please try again.</span>';
+                `<span style="color: red;">Network error: ${error.message}</span>`;
         }
     }
 
     // ========== BACKEND FUNCTIONS ==========
     function getBackendUrl() {
-        // Try to get stored backend URL first
+        // First, check if we have a stored backend URL
         const storedBackendUrl = localStorage.getItem('backend_url');
         
-        if (storedBackendUrl) {
+        // If stored URL exists and doesn't contain the old domain (3k214), use it
+        if (storedBackendUrl && !storedBackendUrl.includes('3k214.dfi.fund')) {
             return storedBackendUrl.replace(/\/$/, ''); // Remove trailing slash
         }
         
-        // Check if we're in local development or production
+        // Check if we're in local development
         const isLocalhost = window.location.hostname === 'localhost' || 
                             window.location.hostname === '127.0.0.1';
         
         if (isLocalhost) {
-            // Local development - try to get port from localStorage or default to 3001
             const storedPort = localStorage.getItem('backend_port') || '3001';
             return `http://localhost:${storedPort}`;
         } else {
-            // Production - use your Vercel URL
-            return 'https://3kv215.dfi.fund';
+            // Always use current domain for production
+            return window.location.origin;
         }
     }
 
@@ -390,19 +425,28 @@
                             window.location.hostname === '127.0.0.1';
         
         currentBackendUrl = getBackendUrl();
+        
+        // Force update localStorage to ensure we have the correct URL
+        if (!currentBackendUrl.includes('3k214.dfi.fund')) {
+            localStorage.setItem('backend_url', currentBackendUrl);
+        }
+        
         const environment = isLocalhost ? '🖥️ Local Development' : '🌐 Production';
         
         // Update UI
         document.getElementById('environment').textContent = environment;
         document.getElementById('backendUrl').textContent = currentBackendUrl;
         
-        // Test backend connection
-        testBackendConnection();
+        console.log('🌍 Environment:', environment);
+        console.log('🔗 Backend URL:', currentBackendUrl);
     }
 
     async function testBackendConnection() {
         try {
-            const response = await fetch(`${currentBackendUrl}/api/auth/health`, {
+            const backendUrl = getBackendUrl();
+            console.log('🔍 Testing backend connection to:', backendUrl + '/api/auth/health');
+            
+            const response = await fetch(`${backendUrl}/api/auth/health`, {
                 method: 'GET',
                 headers: {
                     'Accept': 'application/json'
@@ -412,19 +456,21 @@
             if (response.ok) {
                 const data = await response.json();
                 document.getElementById('backendStatus').innerHTML = 
-                    `<span class="status-online">✅ Online (${data.database || 'connected'})</span>`;
+                    `<span class="status-online">✅ Online (${data.service || 'connected'})</span>`;
+                return true;
             } else {
                 document.getElementById('backendStatus').innerHTML = 
                     '<span class="status-offline">❌ Offline - Health check failed.</span>';
+                return false;
             }
         } catch (error) {
             document.getElementById('backendStatus').innerHTML = 
                 '<span class="status-offline">❌ Offline - Connection failed.</span>';
             console.error('Backend connection test failed:', error);
+            return false;
         }
     }
 
-    // Test token validity
     async function testTokenValidity() {
         const token = localStorage.getItem('token') || localStorage.getItem('user_token');
         
@@ -435,13 +481,17 @@
         }
         
         try {
-            const response = await fetch(`${currentBackendUrl}/api/auth/debug-token`, {
+            const backendUrl = getBackendUrl();
+            console.log('🔐 Testing token validity with:', backendUrl + '/api/auth/debug-token');
+            
+            const response = await fetch(`${backendUrl}/api/auth/debug-token`, {
                 headers: { 'Authorization': `Bearer ${token}` }
             });
             
             if (response.ok) {
+                const data = await response.json();
                 document.getElementById('sessionStatus').innerHTML = 
-                    '<span class="status-online">✅ Valid session</span>';
+                    `<span class="status-online">✅ Valid session (${data.user?.email || 'active'})</span>`;
                 return true;
             } else {
                 document.getElementById('sessionStatus').innerHTML = 
@@ -467,8 +517,26 @@
         
         console.log(`${type.toUpperCase()}: ${message}`);
         
-        // You could add a toast notification system here
-        // For now, we'll just log to console
+        // Simple toast notification
+        const toast = document.createElement('div');
+        toast.style.cssText = `
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            padding: 10px 20px;
+            background: ${colors[type] || '#2196F3'};
+            color: white;
+            border-radius: 5px;
+            z-index: 1000;
+            animation: slideIn 0.3s ease;
+        `;
+        toast.textContent = message;
+        document.body.appendChild(toast);
+        
+        setTimeout(() => {
+            toast.style.animation = 'slideOut 0.3s ease';
+            setTimeout(() => toast.remove(), 300);
+        }, 3000);
     }
 
     function logout() {
@@ -487,7 +555,12 @@
 
     // ========== MAIN INITIALIZATION ==========
     function initializeDashboard() {
-        console.log('Initializing dashboard...');
+        console.log('🚀 Initializing dashboard...');
+        console.log('📍 Current URL:', window.location.href);
+        console.log('🌐 Origin:', window.location.origin);
+        
+        // Update debug info
+        updateDebugInfo();
         
         // First check authentication
         if (!checkAuthentication()) {
@@ -500,21 +573,45 @@
         // Detect environment and setup backend
         detectBackendEnvironment();
         
+        // Test backend connection
+        testBackendConnection();
+        
         // Test token validity
         testTokenValidity();
         
         // Auto-refresh backend status every 30 seconds
         setInterval(() => {
-            if (currentBackendUrl) {
-                testBackendConnection();
-            }
+            testBackendConnection();
         }, 30000);
         
-        console.log('Dashboard initialized successfully');
+        // Update debug info every 5 seconds
+        setInterval(updateDebugInfo, 5000);
+        
+        console.log('✅ Dashboard initialized successfully');
     }
+
+    // Add CSS for toast animations
+    const style = document.createElement('style');
+    style.textContent = `
+        @keyframes slideIn {
+            from { transform: translateX(100%); opacity: 0; }
+            to { transform: translateX(0); opacity: 1; }
+        }
+        @keyframes slideOut {
+            from { transform: translateX(0); opacity: 1; }
+            to { transform: translateX(100%); opacity: 0; }
+        }
+    `;
+    document.head.appendChild(style);
 
     // Initialize when DOM is loaded
     document.addEventListener('DOMContentLoaded', initializeDashboard);
+    
+    // Add global error handler
+    window.addEventListener('error', function(e) {
+        console.error('Global error:', e.error);
+        showMessage('An error occurred: ' + e.error.message, 'error');
+    });
     </script>
 </body>
 </html>
